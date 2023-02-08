@@ -1,0 +1,48 @@
+Day 4
+#Trigger a Backend application through the pipeline via CLI
+╰─○ tkn pipeline start build-and-deploy -w \
+name=shared-workspace,claimName=source-pvc \
+-p deployment-name=pipelines-vote-api \
+-p git-url=https://github.com/openshift/pipelines-vote-api.git \
+-p IMAGE=image-registry.openshift-image-registry.svc:5000/pipelines-tutorial/vote-api \
+-p git-revision=master \
+--showlog
+
+#Trigger a Frontend application through the pipeline via CLI
+╰─○ tkn pipeline start build-and-deploy -w \
+name=shared-workspace,claimName=source-pvc \
+-p deployment-name=pipelines-vote-ui \
+-p git-url=https://github.com/openshift/pipelines-vote-ui.git \
+-p IMAGE=image-registry.openshift-image-registry.svc:5000/pipelines-tutorial/vote-ui \
+-p git-revision=master \
+--showlog
+
+
+#GITOPS
+Install the openshift gitops operator
+
+Get the ArgoCD URL:
+╰─○ oc get routes -n openshift-gitops | grep openshift-gitops-server | awk '{print $2}'
+
+Get the default password
+╰─○ oc extract secret/openshift-gitops-cluster -n openshift-gitops --to=-
+
+Login to ArgoCD from the terminal
+╰─○ oc get routes -n openshift-gitops | grep openshift-gitops-server | awk '{print $2}'
+╰─○ oc extract secret/openshift-gitops-cluster -n openshift-gitops --to=-
+╰─○ argocd login [PREVIOUS_URL]
+
+Verify you are connected by running the following command:
+╰─○ argocd cluster list
+
+Create an application from terminal with the following command
+╰─○ oc apply -f bgd-app.yaml
+
+Verify the application is up and running:
+╰─○ oc get pods,svc,route -n bgd
+╰─○ oc rollout status deploy/bgd -n bgd
+╰─○ oc get route -n bgd
+
+Lets introduce a change:
+╰─○  oc -n bgd patch deploy/bgd --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/env/0/value", "value":"green"}]'
+╰─○ oc rollout status deploy/bgd -n bgd

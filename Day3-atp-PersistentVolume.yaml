@@ -1,0 +1,67 @@
+Day 3 -- Persisten Volume
+
+Create a new project named “atp-persistent-data”
+╰─○ oc new-project atp-persistent-data
+
+Deploy a postgresql application with the following command.
+╰─○ oc new-app --name postgresql-persistent \
+--image registry.redhat.io/rhel8/postgresql-12:1-43 \
+-e POSTGRESQL_USER=redhat \
+-e POSTGRESQL_PASSWORD=redhat123 \
+-e POSTGRESQL_DATABASE=persistentdb
+
+Check pod status:
+╰─○ oc get pods
+
+
+Take a look of PV and PVC:
+╰─○ oc get pv;  oc get pvc
+
+Take a look of Storage Classes on OpenShift:
+╰─○ oc get sc
+
+Create a PVC and set it up into the postgresql application:
+╰─○ oc set volumes deployment/postgresql-persistent \
+--add --name postgresql-storage --type pvc --claim-class nfs-client \
+--claim-mode rwo --claim-size 10Gi --mount-path /var/lib/pgsql \
+--claim-name postgresql-storage
+
+
+╰─○ oc set volumes deployment/postgresql-persistent \
+--add --name postgresql-storage --type pvc --claim-class gp2 \
+--claim-mode rwo --claim-size 10Gi --mount-path /var/lib/pgsql \
+--claim-name postgresql-storage
+
+
+Additional we can check the PV on the NFS server:
+╰─○ ssh root@192.168.8.2 ls /var/lib/libvirt/images/nfs-sc 
+
+Insert data into the postgresql database:
+╰─○ cd openshiftStorageDemo 
+╰─○ ./init_data.sh
+
+Check the data:
+╰─○ ./check_data.sh 
+
+Delete the postgresql application (persistent data will be kept on the PV)
+╰─○ oc delete all -l app=postgresql-persistent 
+
+Validate PV still there:
+╰─○ oc get pv
+
+Deploy a second postgresql application with different name:
+╰─○ oc new-app --name postgresql-persistent2 \
+--docker-image registry.redhat.io/rhel8/postgresql-12:1-43 \
+-e POSTGRESQL_USER=redhat \
+-e POSTGRESQL_PASSWORD=redhat123 \
+-e POSTGRESQL_DATABASE=persistentdb
+
+
+Attach existing PV
+╰─○ oc set volumes deployment/postgresql-persistent2 \
+--add --name postgresql-storage --type pvc \
+--claim-name postgresql-storage --mount-path /var/lib/pgsql
+
+Check the table information, the new database pod can consume and query persisted data.
+╰─○ ./check_data.sh 
+

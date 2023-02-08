@@ -1,0 +1,149 @@
+Installar Operador OpenShift pipelines:
+
+Crear un projecto:
+    oc new-project pipelines-tutorial
+
+Installar tkn CLI:
+    dnf copr enable chmouel/tektoncd-cli
+    dnf install tektoncd-cli
+    tkn version
+
+    check: https://github.com/tektoncd/cli
+
+Check first task:
+    oc apply -f https://raw.githubusercontent.com/openshift-labs/learn-katacoda/master/middleware/pipelines/assets/tasks/hello.yaml
+
+or use this: 
+
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: hello
+spec:
+  steps:
+    - name: say-hello
+      image: registry.access.redhat.com/ubi8/ubi
+      command:
+        - /bin/bash
+      args: ['-c', 'echo Hello World']
+
+
+Run the task:   
+    tkn task start --showlog hello
+
+
+Second part
+
+Create the apply-manifests task:
+    oc create -f https://raw.githubusercontent.com/openshift-labs/learn-katacoda/master/middleware/pipelines/assets/tasks/apply_manifest_task.yaml
+
+We'll also create a update-deployment task, which can be seen with a cat command:
+    oc create -f https://raw.githubusercontent.com/openshift-labs/learn-katacoda/master/middleware/pipelines/assets/tasks/update_deployment_task.yaml
+
+Finally, we can create a PersistentVolumeClaim to provide the filesystem for our pipeline execution, explained more in the next step:
+    oc create -f https://raw.githubusercontent.com/openshift-labs/learn-katacoda/master/middleware/pipelines/assets/resources/persistent_volume_claim.yaml
+
+You can take a look at the tasks you created using the Tekton CLI:
+    tkn task ls
+
+
+
+Third Part 
+
+Create the pipeline by running the following:
+    oc create -f https://raw.githubusercontent.com/openshift-labs/learn-katacoda/master/middleware/pipelines/assets/pipeline/pipeline.yaml
+
+List the pipeline:
+    tkn pipelines ls
+
+We'll first build and deploy our backend application using the following command, with the params already included for our specific demo:
+    tkn pipeline start build-and-deploy -w name=shared-workspace,claimName=source-pvc -p deployment-name=pipelines-vote-api -p git-url=https://github.com/openshift/pipelines-vote-api.git -p IMAGE=image-registry.openshift-image-registry.svc:5000/pipelines-tutorial/vote-api -p git-revision=master --showlog
+
+Similarly, start a pipeline to build and deploy the frontend application:
+    tkn pipeline start build-and-deploy -w name=shared-workspace,claimName=source-pvc -p deployment-name=pipelines-vote-ui -p git-url=https://github.com/openshift/pipelines-vote-ui.git -p IMAGE=image-registry.openshift-image-registry.svc:5000/pipelines-tutorial/vote-ui -p git-revision=master --showlog
+
+Let's list our PipelineRuns:
+    tkn pipelinerun ls
+
+Finally:
+    oc get route pipelines-vote-ui --template='http://{{.spec.host}}'
+
+    or Open topology view
+
+The pipeline yml file:
+    
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build-and-deploy
+spec:
+  workspaces:
+  - name: shared-workspace
+  params:
+  - name: deployment-name
+    type: string
+    description: name of the deployment to be patched
+  - name: git-url
+    type: string
+    description: url of the git repo for the code of deployment
+  - name: git-revision
+    type: string
+    description: revision to be used from repo of the code for deployment
+    default: "master"
+  - name: IMAGE
+    type: string
+    description: image to be build from the code
+  tasks:
+  - name: fetch-repository
+    taskRef:
+      name: git-clone
+      kind: ClusterTask
+    workspaces:
+    - name: output
+      workspace: shared-workspace
+    params:
+    - name: url
+      value: $(params.git-url)
+    - name: subdirectory
+      value: ""
+    - name: deleteExisting
+      value: "true"
+    - name: revision
+      value: $(params.git-revision)
+  - name: build-image
+    taskRef:
+      name: buildah
+      kind: ClusterTask
+    params:
+    - name: TLSVERIFY
+      value: "false"
+    - name: IMAGE
+      value: $(params.IMAGE)
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+    runAfter:
+    - fetch-repository
+  - name: apply-manifests
+    taskRef:
+      name: apply-manifests
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+    runAfter:
+    - build-image
+  - name: update-deployment
+    taskRef:
+      name: update-deployment
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+    params:
+    - name: deployment
+      value: $(params.deployment-name)
+    - name: IMAGE
+      value: $(params.IMAGE)
+    runAfter:
+    - apply-manifests
+
+

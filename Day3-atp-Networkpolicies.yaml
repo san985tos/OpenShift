@@ -1,0 +1,16 @@
+Day 3 ATP -- Network Policy
+
+╰─○ oc new-app --name hello --docker-image quay.io/redhattraining/hello-world-nginx:v1.0
+╰─○ oc expose svc/hello
+╰─○ oc scale --replicas 3 deployment/hello
+╰─○ oc get pods -o wide
+
+╭─vagrant at cent0s in ~ 22-03-22 - 13:21:57
+╰─○ oc run test-pod --image=nginx --labels='name=test-pods'
+
+╰─○ oc policy add-role-to-user admin user1 -n atp-test
+╰─○ oc policy add-role-to-user view user2 -n atp-test
+
+╰─○ oc run test-pod2 --image=nginx
+
+

@@ -1,0 +1,72 @@
+Install operator:
+  OpenShift GitOps
+  
+Instal ArgoCD CLI:
+  curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+  chmod +x /usr/local/bin/argocd
+  mv /usr/local/bin/argocd /usr/local/sbin/
+
+Review installation:
+  oc get operators
+  oc get pods -n openshift-gitops
+  
+
+Connecting to the Argo CD Server:
+  oc get routes -n openshift-gitops | grep openshift-gitops-server | awk '{print $2}'
+  
+Find the default password for the admin account as follows:
+  oc extract secret/openshift-gitops-cluster -n openshift-gitops --to=-
+
+To login from the terminal, execute the following (replace $ARGOCD_SERVER_URL with the above URL):
+  argocd login $ARGOCD_SERVER_URL
+
+  You can login with the following:
+  Username: admin
+  Password:
+
+Verify that you're connected to the Argo CD API server by running the following:
+  argocd cluster list
+
+  This output lists the clusters that Argo CD manages. In this case in-cluster in the NAME field signifies that Argo CD is managing the cluster it's installed on.
+  NOTE You can connect multiple clusters for Argo CD to manage!
+
+To enable bash completion, run the following command:
+  source <(argocd completion bash)
+
+Note:
+  The Argo CD CLI stores it's configuration under ~/.argocd/config
+  NOTE The argocd cluster add command used the ~/.kube/config file to establish connection to the cluster.
+
+
+
+Deploying a Sample Application
+   
+The Application CR (CustomResource) can be applied by running the following:
+  oc apply -f https://raw.githubusercontent.com/redhat-developer-demos/openshift-gitops-examples/main/components/applications/bgd-app.yaml
+
+At this point the application should be up and running. You can see all the resources created with the command:
+  oc get pods,svc,route -n bgd
+
+First wait for the rollout to complete:
+  oc rollout status deploy/bgd -n bgd
+
+Then visit your application using the route by navigating to the URL under the "HOST/PORT" column:
+  oc get route -n bgd
+
+Let's introduce a change! Patch the live manifest to change the color of the box from blue to green:
+  oc -n bgd patch deploy/bgd --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/env/0/value", "value":"green"}]'
+
+Wait for the rollout to happen:
+  oc rollout status deploy/bgd -n bgd
+
+If you refresh your tab where your application is running you should see a green square now.
+
+Looking over at your Argo CD Web UI, you can see that Argo detects your application as "Out of Sync".
+
+You can sync your app via the Argo CD by:
+
+First clicking SYNC
+Then clicking SYNCHRONIZE
+Conversely, you can run
+
+argocd app sync bgd-app

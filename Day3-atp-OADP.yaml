@@ -1,0 +1,117 @@
+Day3-atp-OADP
+
+
+## Step 1 - set up storage backend
+
+Create a Bucket on AWS
+
+Create Secret from cloud file
+╰─○ oc create secret generic cloud-credentials -n openshift-adp --from-file cloud=./cloud 
+
+Validate the secret on the project
+╰─○ oc get secrets -n openshift-adp
+
+Create the Data Protection Application Custom Resource
+╰─○ Login into OpenShift console
+╰─○ Select openshift-adp project
+╰─○ Go to Home > Operators > Installed Operators
+╰─○ Select OADP operator
+
+
+Create a Data Protection Application from YAML:
+╰─○ From ATP Document
+
+Review the installation and verify it is successfully completed.
+╰─○ watch oc get all -n openshift-adp
+
+
+
+## Step 2 - Make a  stateless app Backup
+
+Deploy a stateless application
+╰─○ oc create -f nginx-deployment.yaml 
+
+Review the app on the console
+
+Review the YAML nginx-stateless-backup.yaml
+
+Execute yaml
+╰─○ oc create -f nginx-stateless-backup.yaml 
+
+Wait and review the backup is finished
+╰─○ oc get backup -n openshift-adp nginx-stateless -o jsonpath='{.status.phase}' 
+╰─○ oc get backup -n openshift-adp nginx-stateless -o yaml 
+
+Delete the nginx-example project
+╰─○ oc delete namespace nginx-example
+╰─○ oc get project nginx-example
+
+
+## Step 3 - Restore the stateless app
+
+Create a restore custom resource definition to recover the application
+╰─○ oc create -f nginx-stateless-restore.yaml 
+╰─○ oc get restore -n openshift-adp nginx-stateless -o jsonpath='{.status.phase}'
+
+
+Review the recovered application
+╰─○ oc get project nginx-example
+╰─○ oc get all -n  nginx-example
+
+
+
+## Step 4 - stateful app backup
+
+
+Deploy a persistent application (from same directory from previous exercise)
+╰─○ oc create -f mssql-template-2.yaml 
+
+Wait and validate the application is deployed correctly
+╰─○ oc get all -n mssql-persistent 
+
+Check the created PV and PVC
+╰─○ oc get pvc -n mssql-persistent
+
+Visit the application through the OpenShift console.
+
+Show how to create an application backup this time on the console.
+  > On OpenShift console
+  > Select openshift-adp project
+  > Go to Home > Operators > Installed Operators
+  > Select OADP operator
+  > Select backup
+
+
+Click “create backup”
+  > Name: backup-atp1
+  > Check Include Cluster Resources
+  > Include Namespaces: mssql-persistent
+  > Check Snapshots volumes
+  > Click create
+
+
+Crate the stateful backup
+╰─○ oc create -f mssql-backup.yaml  
+╰─○ oc get backup -n openshift-adp mssql-persistent -o jsonpath='{.status.phase}' 
+
+
+## Step 5 - stateful app restore
+Delete the application
+╰─○ oc delete project  mssql-persistent
+
+Delete pv used for the application.
+╰─○ oc get pv
+╰─○ oc delete pv mssql-persistent
+
+Create a Restore
+╰─○ oc create -f mssql-restore.yaml 
+╰─○ oc get restore -n openshift-adp mssql-persistent -o jsonpath='{.status.phase}' 
+
+Verify all resources have been recreated in the restore process
+╰─○ oc get all -n mssql-persistent 
+
+
+
+
+
+
